@@ -3127,7 +3127,7 @@ window.html2canvas_tilemap = function (el) {
   var scale = parseFloat(parseInt($(canvas).css("width"))/width) || 1;
 
   var signature = canvas.getAttribute("data-signature");
-  var tilesize  = parseInt(canvas.getAttribute("data-tilesize")) ?? null;
+  var tilesize  = parseInt(canvas.getAttribute("data-tilesize")) || null;
 
   var xtiles    = parseInt(canvas.getAttribute("data-xtiles"));
   var ytiles    = parseInt(canvas.getAttribute("data-ytiles"));
