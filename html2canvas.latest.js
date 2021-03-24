@@ -3041,6 +3041,7 @@
 (function ($) {
   $.fn.html2canvas = function (container = "#html2canvas", opts = {}, onrenderedCallback = null) {
 
+    if(Object.keys(this).length === 0) return;
     if($(container).length < 1) return;
 
     // Repeat function to prevent loading issues
@@ -3103,10 +3104,12 @@
 
     return this;
   };
+
 })(jQuery);
 
 window.html2canvas_tilemap = function (el) {
 
+  if(Object.keys(el).length === 0) return;
   if(el.length == 0 || el === undefined) return;
 
   var canvas = $(el)[0];
