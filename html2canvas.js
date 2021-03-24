@@ -1,6 +1,6 @@
 /*
-  html2canvas 0.4.1 <http://html2canvas.hertzen.com>
-  Copyright (c) 2013 Niklas von Hertzen
+  html2canvas-dpi 0.4.9 <http://html2canvas.hertzen.com>
+  Copyright (c) 2020 Niklas von Hertzen
 
   Released under MIT License
 */
@@ -415,7 +415,7 @@ _html2canvas.Util.Children = function( elem ) {
 };
 
 _html2canvas.Util.isTransparent = function(backgroundColor) {
-  return (backgroundColor === "transparent" || backgroundColor === "rgba(0, 0, 0, 0)");
+  return (backgroundColor === "transparent" || backgroundColor === "rgba(0, 0, 0, 0)" || backgroundColor === undefined);
 };
 _html2canvas.Util.Font = (function () {
 
@@ -1557,9 +1557,19 @@ _html2canvas.Parse = function (images, options) {
     brh = borderRadius[2][0],
     brv = borderRadius[2][1],
     blh = borderRadius[3][0],
-    blv = borderRadius[3][1],
+    blv = borderRadius[3][1];
 
-    topWidth = width - trh,
+    var halfHeight = Math.floor(height / 2);
+    tlh = tlh > halfHeight ? halfHeight : tlh;
+    tlv = tlv > halfHeight ? halfHeight : tlv;
+    trh = trh > halfHeight ? halfHeight : trh;
+    trv = trv > halfHeight ? halfHeight : trv;
+    brh = brh > halfHeight ? halfHeight : brh;
+    brv = brv > halfHeight ? halfHeight : brv;
+    blh = blh > halfHeight ? halfHeight : blh;
+    blv = blv > halfHeight ? halfHeight : blv;
+
+    var topWidth = width - trh,
     rightHeight = height - brv,
     bottomWidth = width - brh,
     leftHeight = height - blv;
@@ -1827,6 +1837,9 @@ _html2canvas.Parse = function (images, options) {
         Util.log(['Tried to assign readonly property ', prop, 'Error:', e]);
       }
     });
+
+    elps.style['fontFamily'] = elStyle['fontFamily'];
+    elps.style['font-family'] = elStyle['font-family'];
 
     if(isImage) {
       elps.src = Util.parseBackgroundImage(content)[0].args[0];
@@ -2683,6 +2696,7 @@ window.html2canvas = function(elements, opts) {
 
     width: null,
     height: null,
+    scale: 1,
     taintTest: true, // do a taint test with all images before applying to canvas
     renderer: "Canvas"
   };
@@ -2804,17 +2818,59 @@ _html2canvas.Renderer.Canvas = function(options) {
     }
   }
 
+  function getBrowserInfo() {
+    var ua= navigator.userAgent, tem,
+    M= ua.match(/(opera|chrome|safari|firefox|msie|trident(?=\/))\/?\s*(\d+)/i) || [];
+    if(/trident/i.test(M[1])){
+        tem=  /\brv[ :]+(\d+)/g.exec(ua) || [];
+        return ['IE', (tem[1] || '')];
+    }
+    if(M[1]=== 'Chrome'){
+        tem= ua.match(/\b(OPR|Edge?)\/(\d+)/);
+        if(tem!= null) {
+          var stem = tem.slice(1);
+          stem[0].replace('OPR', 'Opera').replace('Edg ', 'Edge ');
+          return stem;
+        }
+    }
+    M= M[2]? [M[1], M[2]]: [navigator.appName, navigator.appVersion, '-?'];
+    if((tem= ua.match(/version\/(\d+)/i))!= null) M.splice(1, 1, tem[1]);
+    return M;
+  }
+
+  function getBrowserCanvasLimit(scale) {
+    var browser = getBrowserInfo()[0];
+    var restrictions = {
+      DEFAULT: { width: 8192, height: 8192 },
+      Edge: { width: 8192, height: 8192 },
+      Firefox: { width: 32767, height: 32767 },
+      Safari: { width: 32767, height: 32767 },
+      Chrome: { width: 32767, height: 32767 }
+    }
+
+    return [restrictions[browser] || restrictions['DEFAULT'], browser]
+  }
+
   return function(parsedData, options, document, queue, _html2canvas) {
     var ctx = canvas.getContext("2d"),
-    newCanvas,
-    bounds,
-    fstyle,
-    zStack = parsedData.stack;
+      newCanvas,
+      bounds,
+      boundScaleKeys,
+      fstyle,
+      zStack = parsedData.stack;
 
-    canvas.width = canvas.style.width =  options.width || zStack.ctx.width;
-    canvas.height = canvas.style.height = options.height || zStack.ctx.height;
+    if (options.dpi) {
+      options.scale = options.dpi / 96;
+    }
+
+    var browserCanvasLimit = getBrowserCanvasLimit(options.scale);
+    var canvasLimit = browserCanvasLimit[0];
+
+    canvas.width = canvas.style.width = Math.min((options.width || zStack.ctx.width) * options.scale, canvasLimit.width);
+    canvas.height = canvas.style.height = Math.min((options.height || zStack.ctx.height) * options.scale, canvasLimit.height);
 
     fstyle = ctx.fillStyle;
+    ctx.scale(options.scale, options.scale);
     ctx.fillStyle = (Util.isTransparent(zStack.backgroundColor) && options.background !== undefined) ? options.background : parsedData.backgroundColor;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = fstyle;
@@ -2845,17 +2901,26 @@ _html2canvas.Renderer.Canvas = function(options) {
       ctx.restore();
     });
 
-    Util.log("html2canvas: Renderer: Canvas renderer done - returning canvas obj");
+    Util.log("html2canvas: Renderer: Canvas renderer done, scaled at " + options.scale + " - returning canvas obj");
 
     if (options.elements.length === 1) {
       if (typeof options.elements[0] === "object" && options.elements[0].nodeName !== "BODY") {
         // crop image to the bounds of selected (single) element
         bounds = _html2canvas.Util.Bounds(options.elements[0]);
-        newCanvas = document.createElement('canvas');
-        newCanvas.width = Math.ceil(bounds.width);
-        newCanvas.height = Math.ceil(bounds.height);
-        ctx = newCanvas.getContext("2d");
+        boundScaleKeys = ['width', 'height', 'top', 'left'];
 
+        boundScaleKeys.forEach(function(key) {
+          var limitKey = ['width', 'left'].indexOf(key) === -1 ? 'height' : 'width';
+          bounds[key] = Math.min(bounds[key] * options.scale, canvasLimit[limitKey]);
+        });
+
+        newCanvas = document.createElement('canvas');
+        newCanvas.width = Math.min(bounds.width, canvasLimit.width);
+        newCanvas.height = Math.min(bounds.height, canvasLimit.height);
+        newCanvas.style.width = newCanvas.width + 'px';
+        newCanvas.style.height = newCanvas.height + 'px';
+
+        ctx = newCanvas.getContext("2d");
         ctx.drawImage(canvas, bounds.left, bounds.top, bounds.width, bounds.height, 0, 0, bounds.width, bounds.height);
         canvas = null;
         return newCanvas;
