@@ -3184,7 +3184,14 @@ window.html2canvas_tilemap = function (el) {
         //   tileList[index].src = src + "/" + signature + "/" + index;
         //   console.log("Call.. ", tileList[index].src, lazyload);
         // }
-        tileList[index].src = src + "/" + signature + "/" + index;
+
+        var tmp_src = src;
+        if(tmp_src.indexOf("{signature}")) tmp_src = tmp_src.replaceAll("{signature}", signature);
+        else tmp_src += "/" + signature;
+        if(tmp_src.indexOf("{id}")) tmp_src = tmp_src.replaceAll("{id}", index);
+        else tmp_src += "/" + index;
+
+        tileList[index].src = tmp_src;
       }
     }
   };
