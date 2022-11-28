@@ -1,6 +1,6 @@
 {
   "name": "@glitchr/html2canvas",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Javascript tag screenshoot",
   "main": "src/index.js",
   "repository": {
