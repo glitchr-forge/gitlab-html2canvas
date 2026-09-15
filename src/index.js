@@ -3037,8 +3037,17 @@
  * JQuery Wrapper:
  * - includes some additional parameters (dpi, width/height, object-fit)
  * - post-process features
+ *
+ * Registered only once jQuery exists, and retried on `load`. This used to close
+ * with `(function ($) { ... })(jQuery)`, reading the bare `jQuery` global the
+ * moment the module was evaluated. A consumer that loads this in <head> with
+ * `defer` runs it before any later script that assigns window.jQuery, and it
+ * then threw "Can't find variable: jQuery" - intermittently, depending on which
+ * script won the race. Registering again is a no-op once the plugin exists.
  */
-(function ($) {
+function __registerHtml2CanvasJQueryPlugin() {
+  var $ = window.jQuery || window.$;
+  if (!$ || $.fn.html2canvas) return;
   $.fn.html2canvas = function (container = "#html2canvas", opts = {}, onrenderedCallback = null) {
 
     if(Object.keys(this).length === 0) return;
@@ -3104,8 +3113,11 @@
 
     return this;
   };
-
-})(jQuery);
+}
+__registerHtml2CanvasJQueryPlugin();
+if (typeof window !== "undefined" && window.addEventListener) {
+  window.addEventListener("load", __registerHtml2CanvasJQueryPlugin);
+}
 
 window.html2canvas_tilemap = function (el) {
 
